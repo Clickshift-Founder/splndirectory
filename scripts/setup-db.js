@@ -16,11 +16,12 @@ async function setupDatabase() {
       )
     `;
 
-    // Students table
+    // Students table (UPDATED - added email)
     await sql`
       CREATE TABLE IF NOT EXISTS students (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
         matric_number VARCHAR(50) UNIQUE NOT NULL,
         group_id INTEGER REFERENCES groups(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -37,7 +38,7 @@ async function setupDatabase() {
       )
     `;
 
-    // Review periods table (NEW - for monthly tracking)
+    // Review periods table
     await sql`
       CREATE TABLE IF NOT EXISTS review_periods (
         id SERIAL PRIMARY KEY,
@@ -50,7 +51,7 @@ async function setupDatabase() {
       )
     `;
 
-    // Reviews table (UPDATED - with review_period_id)
+    // Reviews table (UPDATED - with unique constraint per reviewer per period)
     await sql`
       CREATE TABLE IF NOT EXISTS reviews (
         id SERIAL PRIMARY KEY,
@@ -61,6 +62,27 @@ async function setupDatabase() {
         question2_score INTEGER NOT NULL CHECK (question2_score >= 1 AND question2_score <= 5),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(reviewer_id, reviewed_id, review_period_id)
+      )
+    `;
+
+    // NEW: Submission tracking table (prevents double submissions)
+    await sql`
+      CREATE TABLE IF NOT EXISTS review_submissions (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER REFERENCES students(id),
+        review_period_id INTEGER REFERENCES review_periods(id),
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(student_id, review_period_id)
+      )
+    `;
+
+    // NEW: Admin users table (for admin authentication)
+    await sql`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
 
@@ -80,7 +102,7 @@ async function setupDatabase() {
     // Insert current review period
     console.log('Creating current review period...');
     const currentDate = new Date();
-    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+    const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                        'July', 'August', 'September', 'October', 'November', 'December'];
@@ -108,7 +130,7 @@ async function setupDatabase() {
     }
     console.log('✅ Groups created!\n');
 
-    // Insert demo students
+    // Insert demo students (WITH REALISTIC MATRIC NUMBERS)
     console.log('Inserting demo students...');
     const firstNames = ['James', 'Sarah', 'Michael', 'Emily', 'David', 'Jessica', 'Daniel', 'Ashley', 'Christopher', 'Amanda', 'Matthew', 'Melissa', 'Joshua', 'Nicole', 'Andrew'];
     const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson'];
@@ -121,17 +143,32 @@ async function setupDatabase() {
         const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
         const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
         const name = `${firstName} ${lastName}`;
-        const matricNumber = `STU${String(studentCount).padStart(5, '0')}`;
+        
+        // Realistic matric format: SC6/2510/XXX
+        const matricNumber = `SC6/2510/${String(studentCount).padStart(3, '0')}`;
+        const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@school.edu`;
 
         await sql`
-          INSERT INTO students (name, matric_number, group_id)
-          VALUES (${name}, ${matricNumber}, ${groupId})
+          INSERT INTO students (name, email, matric_number, group_id)
+          VALUES (${name}, ${email}, ${matricNumber}, ${groupId})
           ON CONFLICT (matric_number) DO NOTHING
         `;
         studentCount++;
       }
     }
     console.log(`✅ ${studentCount - 1} demo students created!\n`);
+
+    // Insert default admin user (username: admin, password: admin123)
+    console.log('Creating default admin user...');
+    // Simple hash for demo (in production, use bcrypt)
+    const defaultPasswordHash = 'admin123'; // Change this in production!
+    
+    await sql`
+      INSERT INTO admin_users (username, password_hash)
+      VALUES ('admin', ${defaultPasswordHash})
+      ON CONFLICT (username) DO NOTHING
+    `;
+    console.log('✅ Admin user created (username: admin, password: admin123)\n');
 
     // Show summary
     const groupCount = await sql`SELECT COUNT(*) as count FROM groups`;
@@ -146,6 +183,8 @@ async function setupDatabase() {
     console.log('═'.repeat(50));
     console.log('\n✨ Your database is ready to use!');
     console.log(`\n📅 Current active period: ${periodName}`);
+    console.log('\n🔐 Sample matric numbers: SC6/2510/001, SC6/2510/002, etc.');
+    console.log('🔑 Admin login: username "admin", password "admin123"');
 
   } catch (error) {
     console.error('❌ Error setting up database:', error);

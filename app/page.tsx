@@ -4,55 +4,74 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
-interface Student {
-  id: number;
-  name: string;
-  matric_number: string;
-  group_id: number;
-}
-
-export default function Home() {
+export default function LoginPage() {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState('');
-  const [suggestions, setSuggestions] = useState<Student[]>([]);
+  const [matricNumber, setMatricNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [error, setError] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleSearch = async (value: string) => {
-    setSearchInput(value);
-    
-    if (value.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setIsLoading(true);
+
     try {
-      const response = await fetch(`/api/students/search?q=${encodeURIComponent(value)}`);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matric_number: matricNumber }),
+      });
+
       const data = await response.json();
-      setSuggestions(data);
-    } catch (error) {
-      console.error('Search error:', error);
-      setSuggestions([]);
+
+      if (response.ok) {
+        // Store student info in session
+        sessionStorage.setItem('studentId', data.student.id);
+        sessionStorage.setItem('matricNumber', data.student.matric_number);
+        sessionStorage.setItem('studentName', data.student.name);
+        
+        // Check if already submitted for current period
+        if (data.already_submitted) {
+          setError(`You have already submitted your reviews for ${data.period_name}. Thank you!`);
+          setIsLoading(false);
+          return;
+        }
+
+        setShowSuccess(true);
+        setTimeout(() => {
+          router.push(`/review/${data.student.id}`);
+        }, 1500);
+      } else {
+        setError(data.error || 'Invalid matric number');
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSelectStudent = async (student: Student) => {
-    setSelectedStudent(student);
-    setSearchInput(student.name);
-    setSuggestions([]);
+  const formatMatricNumber = (value: string) => {
+    // Auto-format as user types: SC6/2510/XXX
+    let formatted = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     
-    // Redirect to review page after a brief moment
-    setTimeout(() => {
-      router.push(`/review/${student.id}`);
-    }, 800);
+    if (formatted.length > 2) {
+      formatted = formatted.slice(0, 3) + '/' + formatted.slice(3);
+    }
+    if (formatted.length > 7) {
+      formatted = formatted.slice(0, 8) + '/' + formatted.slice(8);
+    }
+    if (formatted.length > 12) {
+      formatted = formatted.slice(0, 12);
+    }
+    
+    return formatted;
   };
 
   return (
     <main className="min-h-screen relative overflow-hidden">
-      {/* Decorative background elements */}
+      {/* Decorative background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 right-0 w-96 h-96 bg-brand-red/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-brand-blue/5 rounded-full blur-3xl" />
@@ -79,7 +98,7 @@ export default function Home() {
             </h1>
           </div>
           <div className="text-sm text-slate-500 font-medium">
-            360 Degree Peer Review Portal
+            Peer Review Portal
           </div>
         </div>
       </motion.header>
@@ -99,11 +118,11 @@ export default function Home() {
             </span>
           </h2>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto text-balance">
-            Evaluate your peers with thoughtfulness and integrity
+            Login with your matric number to evaluate your peers
           </p>
         </motion.div>
 
-        {/* Search card */}
+        {/* Login card */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -111,97 +130,64 @@ export default function Home() {
           className="relative"
         >
           <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 p-8 md:p-12 border border-slate-100">
-            <div className="mb-8">
-              <label className="block text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wider">
-                Enter Your Name
-              </label>
-              <div className="relative">
+            <form onSubmit={handleLogin}>
+              <div className="mb-8">
+                <label className="block text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wider">
+                  Matric Number
+                </label>
                 <input
                   type="text"
-                  value={searchInput}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Start typing your name..."
-                  className="w-full px-6 py-5 text-lg border-2 border-slate-200 rounded-2xl focus:border-brand-red focus:outline-none focus:ring-4 focus:ring-brand-red/10 transition-all duration-200 placeholder:text-slate-400"
-                  disabled={selectedStudent !== null}
+                  value={matricNumber}
+                  onChange={(e) => setMatricNumber(formatMatricNumber(e.target.value))}
+                  placeholder="SC6/2510/001"
+                  className="w-full px-6 py-5 text-lg border-2 border-slate-200 rounded-2xl focus:border-brand-red focus:outline-none focus:ring-4 focus:ring-brand-red/10 transition-all duration-200 placeholder:text-slate-400 font-mono"
+                  disabled={isLoading}
+                  maxLength={12}
+                  required
                 />
-                {isLoading && (
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2">
-                    <div className="w-5 h-5 border-2 border-brand-red/30 border-t-brand-red rounded-full animate-spin" />
-                  </div>
-                )}
+                <p className="text-sm text-slate-500 mt-2">
+                  Format: SC6/2510/XXX (e.g., SC6/2510/001)
+                </p>
               </div>
-            </div>
 
-            {/* Suggestions dropdown */}
-            <AnimatePresence>
-              {suggestions.length > 0 && (
+              {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-2"
+                  className="mb-6 p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg"
                 >
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-                    Select Your Name
-                  </p>
-                  <div className="max-h-80 overflow-y-auto space-y-2 pr-2">
-                    {suggestions.map((student, index) => (
-                      <motion.button
-                        key={student.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        onClick={() => handleSelectStudent(student)}
-                        className="w-full text-left p-5 rounded-xl border-2 border-slate-200 hover:border-brand-red hover:bg-brand-red/5 transition-all duration-200 group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold text-slate-900 text-lg mb-1 group-hover:text-brand-red transition-colors">
-                              {student.name}
-                            </div>
-                            <div className="text-sm text-slate-500">
-                              Matric: {student.matric_number}
-                            </div>
-                          </div>
-                          <div className="text-brand-red opacity-0 group-hover:opacity-100 transition-opacity">
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
+                  <p className="text-brand-red font-medium">{error}</p>
                 </motion.div>
               )}
-            </AnimatePresence>
 
-            {/* Selected student confirmation */}
-            <AnimatePresence>
-              {selectedStudent && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="mt-8 p-6 bg-gradient-to-r from-brand-green/10 to-brand-blue/10 rounded-2xl border-2 border-brand-green/30"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 bg-brand-green rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="font-semibold text-brand-green text-lg">
-                      Identity Confirmed
-                    </span>
-                  </div>
-                  <p className="text-slate-600">
-                    Redirecting to review form...
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <button
+                type="submit"
+                disabled={isLoading || matricNumber.length < 12}
+                className="w-full bg-gradient-to-r from-brand-red to-brand-orange text-white font-display font-bold text-xl py-5 rounded-2xl hover:shadow-2xl hover:shadow-brand-red/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-3">
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                    Verifying...
+                  </span>
+                ) : (
+                  'Login & Start Review'
+                )}
+              </button>
+            </form>
+
+            {/* Info box */}
+            <div className="mt-8 p-4 bg-brand-blue/5 rounded-xl border border-brand-blue/20">
+              <div className="flex gap-3">
+                <svg className="w-5 h-5 text-brand-blue flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-slate-700">
+                  <p className="font-semibold mb-1">Security Notice</p>
+                  <p>Your matric number is verified against our database. You can only submit reviews once per month.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
 
@@ -212,9 +198,40 @@ export default function Home() {
           transition={{ duration: 0.6, delay: 0.8 }}
           className="text-center mt-12 text-slate-500 text-sm"
         >
-          Type at least 2 characters to search for your name
+          Having trouble? Contact your administrator
         </motion.p>
       </div>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-12 max-w-md w-full text-center shadow-2xl"
+            >
+              <div className="w-20 h-20 bg-brand-green rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-3xl font-display font-bold text-slate-900 mb-3">
+                Login Successful!
+              </h3>
+              <p className="text-slate-600">
+                Loading your review form...
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

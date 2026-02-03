@@ -25,6 +25,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CRITICAL: Check if already submitted for this period
+    const existingSubmission = await sql`
+      SELECT id
+      FROM review_submissions
+      WHERE student_id = ${reviewer_id} AND review_period_id = ${review_period_id}
+    `;
+
+    if (existingSubmission.rows.length > 0) {
+      return NextResponse.json(
+        { error: 'You have already submitted reviews for this period.' },
+        { status: 400 }
+      );
+    }
+
     // Validate scores are within 1-5 range
     for (const review of reviews) {
       if (
@@ -38,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert all reviews (upsert - update if exists for same period)
+    // Insert all reviews
     for (const review of reviews) {
       await sql`
         INSERT INTO reviews (reviewer_id, reviewed_id, review_period_id, question1_score, question2_score)
@@ -56,6 +70,12 @@ export async function POST(request: NextRequest) {
           created_at = CURRENT_TIMESTAMP
       `;
     }
+
+    // CRITICAL: Mark as submitted to prevent duplicates
+    await sql`
+      INSERT INTO review_submissions (student_id, review_period_id)
+      VALUES (${reviewer_id}, ${review_period_id})
+    `;
 
     return NextResponse.json({
       success: true,
