@@ -79,7 +79,7 @@ export default function Home() {
             </h1>
           </div>
           <div className="text-sm text-slate-500 font-medium">
-            Peer Review Portal
+            360 Degree Peer Review Portal
           </div>
         </div>
       </motion.header>
