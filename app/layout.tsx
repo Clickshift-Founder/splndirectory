@@ -16,7 +16,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Peer Review Portal | SPPG',
+  title: '360 Degree Peer Review Portal | SPPG',
   description: 'Excellence through collaborative assessment',
 }
 

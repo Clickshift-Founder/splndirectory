@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
 interface ReviewPeriod {
@@ -33,6 +33,7 @@ export default function AdminPeriodsPage() {
       setPeriods(data);
     } catch (error) {
       console.error('Error loading periods:', error);
+      setError('Failed to load periods');
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +74,11 @@ export default function AdminPeriodsPage() {
     }
   };
 
-  const activatePeriod = async (periodId: number) => {
+  const activatePeriod = async (periodId: number, periodName: string) => {
+    if (!confirm(`Activate "${periodName}"?\n\nThis will deactivate all other periods and allow students to submit reviews for this period.`)) {
+      return;
+    }
+
     setError('');
     setSuccess('');
 
@@ -97,13 +102,41 @@ export default function AdminPeriodsPage() {
     }
   };
 
+  const deactivatePeriod = async (periodId: number, periodName: string) => {
+    if (!confirm(`Deactivate "${periodName}"?\n\nThis will close the review period. Students will not be able to submit reviews until you activate another period.`)) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      // Set all periods to inactive
+      const response = await fetch('/api/admin/periods/deactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        setSuccess(`Deactivated all periods`);
+        loadPeriods();
+      } else {
+        setError('Failed to deactivate period');
+      }
+    } catch (error) {
+      setError('Connection error. Please try again.');
+    }
+  };
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear + i);
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i); // Previous year to +3 years
+
+  const activePeriod = periods.find(p => p.is_active);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
@@ -149,26 +182,74 @@ export default function AdminPeriodsPage() {
           </p>
         </motion.div>
 
-        {/* Alerts */}
-        {error && (
+        {/* Active Period Alert */}
+        {activePeriod && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mb-6 p-6 bg-brand-green/10 border-l-4 border-brand-green rounded-2xl"
           >
-            <p className="text-brand-red font-medium">{error}</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-brand-green rounded-full animate-pulse" />
+                <div>
+                  <p className="font-semibold text-brand-green text-lg">Currently Active Period</p>
+                  <p className="text-slate-700 text-xl font-display font-bold mt-1">{activePeriod.period_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => deactivatePeriod(activePeriod.id, activePeriod.period_name)}
+                className="px-4 py-2 bg-brand-red text-white rounded-lg font-semibold hover:bg-brand-red/90 transition-all"
+              >
+                Deactivate
+              </button>
+            </div>
           </motion.div>
         )}
 
-        {success && (
+        {/* No Active Period Warning */}
+        {!activePeriod && !isLoading && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-brand-green/10 border-l-4 border-brand-green rounded-lg"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mb-6 p-6 bg-brand-orange/10 border-l-4 border-brand-orange rounded-2xl"
           >
-            <p className="text-brand-green font-medium">{success}</p>
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 text-brand-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-brand-orange">No Active Period</p>
+                <p className="text-slate-600 text-sm">Students cannot submit reviews. Create and activate a period to begin.</p>
+              </div>
+            </div>
           </motion.div>
         )}
+
+        {/* Alerts */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-6 p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg"
+            >
+              <p className="text-brand-red font-medium">{error}</p>
+            </motion.div>
+          )}
+
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-6 p-4 bg-brand-green/10 border-l-4 border-brand-green rounded-lg"
+            >
+              <p className="text-brand-green font-medium">{success}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Create New Period Button */}
         {!showCreateForm && (
@@ -186,78 +267,89 @@ export default function AdminPeriodsPage() {
         )}
 
         {/* Create Form */}
-        {showCreateForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-white rounded-2xl shadow-lg border border-slate-200 p-6"
-          >
-            <h3 className="text-xl font-display font-bold text-slate-900 mb-4">
-              Create New Review Period
-            </h3>
-            <div className="grid md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Month
-                </label>
-                <select
-                  value={newPeriodMonth}
-                  onChange={(e) => setNewPeriodMonth(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
-                >
-                  <option value="">Select Month</option>
-                  {monthNames.map((month, index) => (
-                    <option key={index} value={index + 1}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
+        <AnimatePresence>
+          {showCreateForm && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-8 bg-white rounded-2xl shadow-lg border border-slate-200 p-6"
+            >
+              <h3 className="text-xl font-display font-bold text-slate-900 mb-4">
+                Create New Review Period
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                💡 <strong>Tip:</strong> Create a period for the upcoming month. You can activate it when ready.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Month
+                  </label>
+                  <select
+                    value={newPeriodMonth}
+                    onChange={(e) => setNewPeriodMonth(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
+                  >
+                    <option value="">Select Month</option>
+                    {monthNames.map((month, index) => (
+                      <option key={index} value={index + 1}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Year
+                  </label>
+                  <select
+                    value={newPeriodYear}
+                    onChange={(e) => setNewPeriodYear(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
+                  >
+                    <option value="">Select Year</option>
+                    {years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Year
-                </label>
-                <select
-                  value={newPeriodYear}
-                  onChange={(e) => setNewPeriodYear(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
+              <div className="flex gap-3">
+                <button
+                  onClick={createNewPeriod}
+                  className="px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all"
                 >
-                  <option value="">Select Year</option>
-                  {years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
+                  Create Period
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewPeriodMonth('');
+                    setNewPeriodYear('');
+                    setError('');
+                  }}
+                  className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition-all"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={createNewPeriod}
-                className="px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all"
-              >
-                Create Period
-              </button>
-              <button
-                onClick={() => {
-                  setShowCreateForm(false);
-                  setNewPeriodMonth('');
-                  setNewPeriodYear('');
-                  setError('');
-                }}
-                className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Periods List */}
         {isLoading ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 border-4 border-brand-red/30 border-t-brand-red rounded-full animate-spin mx-auto mb-4" />
             <p className="text-slate-600">Loading periods...</p>
+          </div>
+        ) : periods.length === 0 ? (
+          <div className="bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 p-12 text-center">
+            <p className="text-slate-600 text-lg mb-4">No review periods created yet</p>
+            <p className="text-slate-500 text-sm">Click "Create New Period" above to get started</p>
           </div>
         ) : (
           <motion.div
@@ -272,21 +364,27 @@ export default function AdminPeriodsPage() {
                   className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    {period.is_active && (
+                    {period.is_active ? (
                       <div className="w-3 h-3 bg-brand-green rounded-full animate-pulse" />
+                    ) : (
+                      <div className="w-3 h-3 bg-slate-300 rounded-full" />
                     )}
                     <div>
                       <h4 className="text-lg font-display font-bold text-slate-900">
                         {period.period_name}
                       </h4>
                       <p className="text-sm text-slate-500">
-                        {period.is_active ? 'Currently Active' : 'Inactive'}
+                        {period.is_active ? (
+                          <span className="text-brand-green font-semibold">✓ Currently Active - Students can submit</span>
+                        ) : (
+                          'Inactive'
+                        )}
                       </p>
                     </div>
                   </div>
                   {!period.is_active && (
                     <button
-                      onClick={() => activatePeriod(period.id)}
+                      onClick={() => activatePeriod(period.id, period.period_name)}
                       className="px-4 py-2 bg-brand-blue text-white rounded-lg font-semibold hover:bg-brand-blue/90 transition-all"
                     >
                       Activate
@@ -297,6 +395,38 @@ export default function AdminPeriodsPage() {
             </div>
           </motion.div>
         )}
+
+        {/* Help Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8 p-6 bg-brand-blue/5 rounded-2xl border border-brand-blue/20"
+        >
+          <h4 className="font-display font-bold text-slate-900 mb-3">How Period Management Works</h4>
+          <ul className="space-y-2 text-sm text-slate-700">
+            <li className="flex gap-2">
+              <span className="text-brand-blue">•</span>
+              <span><strong>Create</strong> periods in advance (e.g., create March in February)</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-brand-blue">•</span>
+              <span><strong>Activate</strong> a period when you want students to start submitting</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-brand-blue">•</span>
+              <span><strong>Only ONE period</strong> can be active at a time</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-brand-blue">•</span>
+              <span><strong>Deactivate</strong> current period to close submissions temporarily</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-brand-blue">•</span>
+              <span><strong>Students can only submit once</strong> per active period</span>
+            </li>
+          </ul>
+        </motion.div>
       </div>
     </main>
   );
