@@ -15,14 +15,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Get aggregated review results for the specified period and group
+    // COALESCE converts NULL to 0
     const result = await sql`
       SELECT 
         s.id as student_id,
         s.name as student_name,
         s.matric_number,
-        ROUND(AVG(r.question1_score)::numeric, 2) as avg_q1,
-        ROUND(AVG(r.question2_score)::numeric, 2) as avg_q2,
-        ROUND(AVG((r.question1_score + r.question2_score) / 2.0)::numeric, 2) as overall_avg,
+        COALESCE(ROUND(AVG(r.question1_score)::numeric, 2), 0) as avg_q1,
+        COALESCE(ROUND(AVG(r.question2_score)::numeric, 2), 0) as avg_q2,
+        COALESCE(ROUND(AVG((r.question1_score + r.question2_score) / 2.0)::numeric, 2), 0) as overall_avg,
         COUNT(r.id) as review_count
       FROM students s
       LEFT JOIN reviews r ON s.id = r.reviewed_id AND r.review_period_id = ${periodId}
@@ -32,7 +33,18 @@ export async function GET(request: NextRequest) {
       ORDER BY s.name
     `;
 
-    return NextResponse.json(result.rows);
+    // Additional safety: convert string numbers to actual numbers
+    const sanitizedResults = result.rows.map(row => ({
+      student_id: row.student_id,
+      student_name: row.student_name,
+      matric_number: row.matric_number,
+      avg_q1: Number(row.avg_q1) || 0,
+      avg_q2: Number(row.avg_q2) || 0,
+      overall_avg: Number(row.overall_avg) || 0,
+      review_count: Number(row.review_count) || 0,
+    }));
+
+    return NextResponse.json(sanitizedResults);
   } catch (error) {
     console.error('Error fetching results:', error);
     return NextResponse.json(
