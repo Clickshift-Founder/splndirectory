@@ -10,16 +10,22 @@ export async function GET() {
       LIMIT 1
     `;
 
+    console.log('📅 Active period query result:', result.rows);
+
     if (result.rows.length === 0) {
+      console.log('⚠️ No active period found');
       return NextResponse.json(
-        { error: 'No active review period found' },
+        { error: 'No active review period' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(result.rows[0]);
+    const activePeriod = result.rows[0];
+    console.log('✅ Active period:', activePeriod);
+
+    return NextResponse.json(activePeriod);
   } catch (error) {
-    console.error('Error fetching active period:', error);
+    console.error('❌ Error fetching active period:', error);
     return NextResponse.json(
       { error: 'Failed to fetch active period' },
       { status: 500 }
