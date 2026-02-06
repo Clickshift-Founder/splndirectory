@@ -22,45 +22,52 @@ export default function AdminPeriodsPage() {
   const [newPeriodYear, setNewPeriodYear] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     loadPeriods();
-  }, []);
+  }, [refreshKey]);
 
   const loadPeriods = async () => {
     try {
       setIsLoading(true);
-      // Force fresh data with cache busting
-      const timestamp = new Date().getTime();
-      const response = await fetch(`/api/periods?t=${timestamp}`, {
+      // AGGRESSIVE cache busting
+      const timestamp = Date.now();
+      const random = Math.random();
+      const response = await fetch(`/api/periods?_t=${timestamp}&_r=${random}`, {
+        method: 'GET',
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
           'Pragma': 'no-cache',
+          'Expires': '0',
         },
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
-      setPeriods([...data]); // Create new array to force re-render
       
-      console.log('✅ Periods loaded:', data);
+      // Force new state
+      setPeriods([...data]);
+      
+      console.log('✅ Loaded periods:', data);
     } catch (error) {
-      console.error('❌ Error loading periods:', error);
+      console.error('❌ Load error:', error);
       setError('Failed to load periods');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const forcePageRefresh = () => {
-    // Nuclear option: force complete page reload
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
+  const forceRefresh = async () => {
+    // Multiple refresh strategies
+    setRefreshKey(prev => prev + 1);
+    router.refresh();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await loadPeriods();
   };
 
   const createNewPeriod = async () => {
@@ -91,21 +98,23 @@ export default function AdminPeriodsPage() {
         setNewPeriodMonth('');
         setNewPeriodYear('');
         
-        // Force page reload to show new period
-        forcePageRefresh();
+        // Force immediate refresh
+        await forceRefresh();
+        
+        setTimeout(() => setSuccess(''), 3000);
       } else {
         setError(data.error || 'Failed to create period');
-        setIsProcessing(false);
       }
     } catch (error) {
       console.error('Create error:', error);
       setError('Connection error. Please try again.');
+    } finally {
       setIsProcessing(false);
     }
   };
 
   const activatePeriod = async (periodId: number, periodName: string) => {
-    if (!confirm(`Activate "${periodName}"?\n\nThis will deactivate all other periods and allow students to submit reviews.`)) {
+    if (!confirm(`Activate "${periodName}"?\n\nThis will deactivate all other periods.`)) {
       return;
     }
 
@@ -114,32 +123,39 @@ export default function AdminPeriodsPage() {
     setIsProcessing(true);
 
     try {
+      console.log('🔄 Activating period:', periodId);
+      
       const response = await fetch('/api/admin/periods/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period_id: periodId }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(`✅ Activated: ${data.period.period_name}`);
-        
-        // Force page reload to update UI
-        forcePageRefresh();
-      } else {
-        setError(data.error || 'Failed to activate period');
-        setIsProcessing(false);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log('✅ Activation response:', data);
+
+      setSuccess(`✅ Activated: ${data.period.period_name}`);
+      
+      // FORCE multiple refreshes
+      await forceRefresh();
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await forceRefresh();
+      
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.error('Activate error:', error);
-      setError('Connection error. Please try again.');
+      console.error('❌ Activate error:', error);
+      setError('Failed to activate period. Please refresh the page.');
+    } finally {
       setIsProcessing(false);
     }
   };
 
   const deactivatePeriod = async (periodId: number, periodName: string) => {
-    if (!confirm(`Deactivate "${periodName}"?\n\nStudents will not be able to submit reviews until you activate another period.`)) {
+    if (!confirm(`Deactivate "${periodName}"?\n\nStudents will not be able to submit until you activate another period.`)) {
       return;
     }
 
@@ -148,23 +164,31 @@ export default function AdminPeriodsPage() {
     setIsProcessing(true);
 
     try {
+      console.log('🔄 Deactivating all periods');
+      
       const response = await fetch('/api/admin/periods/deactivate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (response.ok) {
-        setSuccess('✅ All periods deactivated');
-        
-        // Force page reload
-        forcePageRefresh();
-      } else {
-        setError('Failed to deactivate period');
-        setIsProcessing(false);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
+
+      console.log('✅ Deactivated all periods');
+      
+      setSuccess('✅ All periods deactivated');
+      
+      // FORCE multiple refreshes
+      await forceRefresh();
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await forceRefresh();
+      
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.error('Deactivate error:', error);
-      setError('Connection error. Please try again.');
+      console.error('❌ Deactivate error:', error);
+      setError('Failed to deactivate. Please refresh the page.');
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -180,7 +204,7 @@ export default function AdminPeriodsPage() {
   const activePeriod = periods.find(p => p.is_active);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50" key={refreshKey}>
       {/* Header */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
@@ -198,12 +222,21 @@ export default function AdminPeriodsPage() {
               </div>
               <h1 className="text-xl font-display font-bold">SPPG Admin</h1>
             </div>
-            <button
-              onClick={() => router.push('/admin')}
-              className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              ← Back to Dashboard
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => forceRefresh()}
+                className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
+                disabled={isProcessing}
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => router.push('/admin')}
+                className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                ← Back to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </motion.header>
@@ -226,7 +259,7 @@ export default function AdminPeriodsPage() {
         {/* Active Period Alert */}
         {activePeriod && !isLoading && (
           <motion.div
-            key={`active-${activePeriod.id}`}
+            key={`active-${activePeriod.id}-${activePeriod.period_name}`}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="mb-6 p-6 bg-brand-green/10 border-l-4 border-brand-green rounded-2xl"
@@ -252,7 +285,7 @@ export default function AdminPeriodsPage() {
         )}
 
         {/* No Active Period Warning */}
-        {!activePeriod && !isLoading && (
+        {!activePeriod && !isLoading && periods.length > 0 && (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -291,7 +324,6 @@ export default function AdminPeriodsPage() {
               className="mb-6 p-4 bg-brand-green/10 border-l-4 border-brand-green rounded-lg"
             >
               <p className="text-brand-green font-medium">{success}</p>
-              <p className="text-slate-600 text-sm mt-1">Page will refresh in a moment...</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -324,9 +356,6 @@ export default function AdminPeriodsPage() {
               <h3 className="text-xl font-display font-bold text-slate-900 mb-4">
                 Create New Review Period
               </h3>
-              <p className="text-sm text-slate-600 mb-4">
-                💡 <strong>Tip:</strong> Create periods in advance. Activate when ready.
-              </p>
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -403,7 +432,7 @@ export default function AdminPeriodsPage() {
           </div>
         ) : (
           <motion.div
-            key={periods.map(p => `${p.id}-${p.is_active}`).join('-')}
+            key={`list-${periods.map(p => `${p.id}-${p.is_active}`).join('-')}`}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden"
@@ -416,7 +445,7 @@ export default function AdminPeriodsPage() {
                 })
                 .map((period) => (
                   <div
-                    key={`period-${period.id}`}
+                    key={`period-${period.id}-${period.is_active ? 'active' : 'inactive'}`}
                     className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex items-center gap-4">
@@ -460,7 +489,7 @@ export default function AdminPeriodsPage() {
           transition={{ delay: 0.3 }}
           className="mt-8 p-6 bg-brand-blue/5 rounded-2xl border border-brand-blue/20"
         >
-          <h4 className="font-display font-bold text-slate-900 mb-3">How Period Management Works</h4>
+          <h4 className="font-display font-bold text-slate-900 mb-3">How It Works</h4>
           <ul className="space-y-2 text-sm text-slate-700">
             <li className="flex gap-2">
               <span className="text-brand-blue">•</span>
@@ -472,11 +501,11 @@ export default function AdminPeriodsPage() {
             </li>
             <li className="flex gap-2">
               <span className="text-brand-blue">•</span>
-              <span><strong>Only ONE</strong> period can be active at a time</span>
+              <span><strong>Only ONE</strong> period active at a time</span>
             </li>
             <li className="flex gap-2">
               <span className="text-brand-blue">•</span>
-              <span><strong>Page refreshes</strong> after each action to update UI</span>
+              <span><strong>Click 🔄 Refresh</strong> if UI doesn't update</span>
             </li>
           </ul>
         </motion.div>
