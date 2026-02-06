@@ -16,6 +16,7 @@ export default function AdminPeriodsPage() {
   const router = useRouter();
   const [periods, setPeriods] = useState<ReviewPeriod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPeriodMonth, setNewPeriodMonth] = useState('');
   const [newPeriodYear, setNewPeriodYear] = useState('');
@@ -28,7 +29,13 @@ export default function AdminPeriodsPage() {
 
   const loadPeriods = async () => {
     try {
-      const response = await fetch('/api/periods');
+      setIsLoading(true);
+      const response = await fetch('/api/periods', {
+        cache: 'no-store', // Force fresh data
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       setPeriods(data);
     } catch (error) {
@@ -48,6 +55,7 @@ export default function AdminPeriodsPage() {
       return;
     }
 
+    setIsProcessing(true);
     try {
       const response = await fetch('/api/admin/periods/create', {
         method: 'POST',
@@ -65,12 +73,19 @@ export default function AdminPeriodsPage() {
         setShowCreateForm(false);
         setNewPeriodMonth('');
         setNewPeriodYear('');
-        loadPeriods();
+        
+        // Wait a moment for database to update, then reload
+        setTimeout(() => {
+          loadPeriods();
+          setSuccess('');
+        }, 500);
       } else {
         setError(data.error || 'Failed to create period');
       }
     } catch (error) {
       setError('Connection error. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -81,6 +96,7 @@ export default function AdminPeriodsPage() {
 
     setError('');
     setSuccess('');
+    setIsProcessing(true);
 
     try {
       const response = await fetch('/api/admin/periods/activate', {
@@ -93,12 +109,19 @@ export default function AdminPeriodsPage() {
 
       if (response.ok) {
         setSuccess(`Activated period: ${data.period.period_name}`);
-        loadPeriods();
+        
+        // Wait a moment for database to update, then reload
+        setTimeout(() => {
+          loadPeriods();
+          setTimeout(() => setSuccess(''), 3000);
+        }, 500);
       } else {
         setError(data.error || 'Failed to activate period');
       }
     } catch (error) {
       setError('Connection error. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -109,22 +132,29 @@ export default function AdminPeriodsPage() {
 
     setError('');
     setSuccess('');
+    setIsProcessing(true);
 
     try {
-      // Set all periods to inactive
       const response = await fetch('/api/admin/periods/deactivate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        setSuccess(`Deactivated all periods`);
-        loadPeriods();
+        setSuccess('All periods deactivated');
+        
+        // Wait a moment for database to update, then reload
+        setTimeout(() => {
+          loadPeriods();
+          setTimeout(() => setSuccess(''), 3000);
+        }, 500);
       } else {
         setError('Failed to deactivate period');
       }
     } catch (error) {
       setError('Connection error. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -134,7 +164,7 @@ export default function AdminPeriodsPage() {
   ];
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i); // Previous year to +3 years
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
 
   const activePeriod = periods.find(p => p.is_active);
 
@@ -183,8 +213,9 @@ export default function AdminPeriodsPage() {
         </motion.div>
 
         {/* Active Period Alert */}
-        {activePeriod && (
+        {activePeriod && !isLoading && (
           <motion.div
+            key={`active-${activePeriod.id}`}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="mb-6 p-6 bg-brand-green/10 border-l-4 border-brand-green rounded-2xl"
@@ -195,13 +226,15 @@ export default function AdminPeriodsPage() {
                 <div>
                   <p className="font-semibold text-brand-green text-lg">Currently Active Period</p>
                   <p className="text-slate-700 text-xl font-display font-bold mt-1">{activePeriod.period_name}</p>
+                  <p className="text-sm text-slate-600 mt-1">✓ Students can submit reviews</p>
                 </div>
               </div>
               <button
                 onClick={() => deactivatePeriod(activePeriod.id, activePeriod.period_name)}
-                className="px-4 py-2 bg-brand-red text-white rounded-lg font-semibold hover:bg-brand-red/90 transition-all"
+                disabled={isProcessing}
+                className="px-4 py-2 bg-brand-red text-white rounded-lg font-semibold hover:bg-brand-red/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Deactivate
+                {isProcessing ? 'Processing...' : 'Deactivate'}
               </button>
             </div>
           </motion.div>
@@ -257,7 +290,8 @@ export default function AdminPeriodsPage() {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             onClick={() => setShowCreateForm(true)}
-            className="mb-8 px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all flex items-center gap-2"
+            disabled={isProcessing}
+            className="mb-8 px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all flex items-center gap-2 disabled:opacity-50"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -289,7 +323,8 @@ export default function AdminPeriodsPage() {
                   <select
                     value={newPeriodMonth}
                     onChange={(e) => setNewPeriodMonth(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
+                    disabled={isProcessing}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 disabled:opacity-50"
                   >
                     <option value="">Select Month</option>
                     {monthNames.map((month, index) => (
@@ -306,7 +341,8 @@ export default function AdminPeriodsPage() {
                   <select
                     value={newPeriodYear}
                     onChange={(e) => setNewPeriodYear(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
+                    disabled={isProcessing}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 disabled:opacity-50"
                   >
                     <option value="">Select Year</option>
                     {years.map((year) => (
@@ -320,9 +356,10 @@ export default function AdminPeriodsPage() {
               <div className="flex gap-3">
                 <button
                   onClick={createNewPeriod}
-                  className="px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all"
+                  disabled={isProcessing}
+                  className="px-6 py-3 bg-brand-green text-white rounded-xl font-semibold hover:bg-brand-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Period
+                  {isProcessing ? 'Creating...' : 'Create Period'}
                 </button>
                 <button
                   onClick={() => {
@@ -331,7 +368,8 @@ export default function AdminPeriodsPage() {
                     setNewPeriodYear('');
                     setError('');
                   }}
-                  className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition-all"
+                  disabled={isProcessing}
+                  className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -353,6 +391,7 @@ export default function AdminPeriodsPage() {
           </div>
         ) : (
           <motion.div
+            key={periods.length} // Force re-render when periods change
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden"
@@ -385,9 +424,10 @@ export default function AdminPeriodsPage() {
                   {!period.is_active && (
                     <button
                       onClick={() => activatePeriod(period.id, period.period_name)}
-                      className="px-4 py-2 bg-brand-blue text-white rounded-lg font-semibold hover:bg-brand-blue/90 transition-all"
+                      disabled={isProcessing}
+                      className="px-4 py-2 bg-brand-blue text-white rounded-lg font-semibold hover:bg-brand-blue/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Activate
+                      {isProcessing ? 'Processing...' : 'Activate'}
                     </button>
                   )}
                 </div>
