@@ -9,6 +9,7 @@ interface Student {
   name: string;
   matric_number: string;
   group_id: number;
+  phone_number: number;
 }
 
 interface GroupMember extends Student {
@@ -206,38 +207,43 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Student Info Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-lg border border-slate-200 p-8 mb-8"
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-3xl font-display font-bold text-slate-900 mb-3">
-                Welcome, {student.name}
-              </h2>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2 px-4 py-2 bg-brand-red/10 rounded-full">
-                  <span className="font-semibold text-brand-red">Matric:</span>
-                  <span className="text-slate-700">{student.matric_number}</span>
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-brand-blue/10 rounded-full">
-                  <span className="font-semibold text-brand-blue">Group:</span>
-                  <span className="text-slate-700">#{student.group_id}</span>
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-brand-green/10 rounded-full">
-                  <span className="font-semibold text-brand-green">Peers:</span>
-                  <span className="text-slate-700">{groupMembers.length}</span>
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-brand-orange/10 rounded-full">
-                  <span className="font-semibold text-brand-orange">Period:</span>
-                  <span className="text-slate-700">{activePeriod.period_name}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+       // UPDATE THIS SECTION in your app/review/[id]/page.tsx
+// Find the "Welcome card" section and replace with this:
+
+{/* Welcome Card with Phone Number */}
+<motion.div
+  initial={{ y: 20, opacity: 0 }}
+  animate={{ y: 0, opacity: 1 }}
+  className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 mb-8"
+>
+  <h2 className="text-3xl font-display font-bold text-slate-900 mb-6">
+    Welcome, {student.name}
+  </h2>
+  <div className="flex flex-wrap gap-3">
+    <div className="px-4 py-2 bg-brand-red/10 rounded-xl">
+      <span className="text-sm text-slate-600">Matric:</span>
+      <span className="ml-2 font-semibold text-brand-red">{student.matric_number}</span>
+    </div>
+    <div className="px-4 py-2 bg-brand-blue/10 rounded-xl">
+      <span className="text-sm text-slate-600">Group:</span>
+      <span className="ml-2 font-semibold text-brand-blue">#{student.group_id}</span>
+    </div>
+    <div className="px-4 py-2 bg-brand-green/10 rounded-xl">
+      <span className="text-sm text-slate-600">Peers:</span>
+      <span className="ml-2 font-semibold text-brand-green">{groupMembers.length}</span>
+    </div>
+    {student.phone_number && (
+      <div className="px-4 py-2 bg-brand-orange/10 rounded-xl">
+        <span className="text-sm text-slate-600">Phone:</span>
+        <span className="ml-2 font-semibold text-brand-orange">{student.phone_number}</span>
+      </div>
+    )}
+    <div className="px-4 py-2 bg-amber-50 rounded-xl">
+      <span className="text-sm text-slate-600">Period:</span>
+      <span className="ml-2 font-semibold text-amber-700">{activePeriod.period_name}</span>
+    </div>
+  </div>
+</motion.div>
 
         {/* Instructions */}
         <motion.div

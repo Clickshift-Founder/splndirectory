@@ -98,7 +98,7 @@ export default function LoginPage() {
             </h1>
           </div>
           <div className="text-sm text-slate-500 font-medium">
-            Peer Review Portal
+            360 Degree Peer Review Portal
           </div>
         </div>
       </motion.header>
@@ -198,7 +198,8 @@ export default function LoginPage() {
           transition={{ duration: 0.6, delay: 0.8 }}
           className="text-center mt-12 text-slate-500 text-sm"
         >
-          Having trouble? Contact your administrator
+          Having trouble? Contact your administrator.
+          Powered by The School of Politics Policy and Governance
         </motion.p>
       </div>
 
