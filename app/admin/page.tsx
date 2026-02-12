@@ -236,7 +236,7 @@ export default function AdminDashboard() {
                 onChange={(e) => setSelectedGroup(Number(e.target.value))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 transition-all"
               >
-                <option value="all">All Groups</option>
+                <option value="">Select Group</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
