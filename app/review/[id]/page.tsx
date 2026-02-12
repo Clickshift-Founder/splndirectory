@@ -207,10 +207,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Student Info Card */}
-       // UPDATE THIS SECTION in your app/review/[id]/page.tsx
-// Find the "Welcome card" section and replace with this:
-
-{/* Welcome Card with Phone Number */}
+  {/* Welcome Card with Phone Number */}
 <motion.div
   initial={{ y: 20, opacity: 0 }}
   animate={{ y: 0, opacity: 1 }}
