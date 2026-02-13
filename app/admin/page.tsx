@@ -50,41 +50,41 @@ export default function AdminDashboard() {
     }
   }, [selectedPeriod, selectedGroup]);
 
-  const loadPeriodsAndGroups = async () => {
-    try {
-      const [periodsRes, groupsRes] = await Promise.all([
-        fetch('/api/periods'),
-        fetch('/api/groups')
-      ]);
+ const loadPeriodsAndGroups = async () => {
+  try {
+    const [periodsRes, groupsRes] = await Promise.all([
+      fetch('/api/periods'),
+      fetch('/api/groups')
+    ]);
 
-      const periodsData = await periodsRes.json();
-      const groupsData = await groupsRes.json();
+    const periodsData = await periodsRes.json();
+    const groupsData = await groupsRes.json();
 
-      setPeriods(periodsData);
-      setGroups(groupsData);
+    setPeriods(periodsData);
+    setGroups(groupsData);
 
-      // Auto-select active period if exists
-      const activePeriod = periodsData.find((p: ReviewPeriod) => p.is_active);
-      if (activePeriod) {
-        setSelectedPeriod(activePeriod.id);
-      }
-
-      // Auto-select first group
-      if (groupsData.length > 0) {
-        setSelectedGroup(groupsData[0].id);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
+    // Auto-select active period if exists
+    const activePeriod = periodsData.find((p: ReviewPeriod) => p.is_active);
+    if (activePeriod) {
+      setSelectedPeriod(activePeriod.id);
     }
-  };
+
+    // DON'T auto-select group - let user choose
+    // This prevents the error from showing on page load
+  } catch (error) {
+    console.error('Error loading data:', error);
+  }
+};
 
 const loadResults = async () => {
+  // Clear any previous errors
+  setError('');
+  
   if (!selectedPeriod) {
     setResults([]);
     return;
   }
 
-  // Allow showing all groups
   if (!selectedGroup) {
     setResults([]);
     return;
@@ -100,6 +100,8 @@ const loadResults = async () => {
       ? `/api/results?period_id=${selectedPeriod}&_t=${timestamp}&_r=${random}`
       : `/api/results?period_id=${selectedPeriod}&group_id=${selectedGroup}&_t=${timestamp}&_r=${random}`;
     
+    console.log('🔍 Fetching:', url);
+    
     const response = await fetch(url, {
       cache: 'no-store',
       headers: {
@@ -109,14 +111,20 @@ const loadResults = async () => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch results');
+      const errorData = await response.json();
+      console.error('❌ API Error:', errorData);
+      throw new Error(errorData.error || 'Failed to fetch results');
     }
 
     const data = await response.json();
+    console.log('✅ Received:', data.length, 'students');
     setResults(data);
-  } catch (error) {
-    console.error('Error loading results:', error);
-    setError('Failed to load results');
+    
+    // Clear error on success
+    setError('');
+  } catch (error: any) {
+    console.error('❌ Error loading results:', error);
+    setError(error.message || 'Failed to load results');
   } finally {
     setIsLoading(false);
   }
@@ -230,17 +238,23 @@ const loadResults = async () => {
           </p>
         </motion.div>
 
-        {error && (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-7xl mx-auto px-6 mb-4"
+       {error && selectedPeriod && selectedGroup && (
+  <motion.div
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mb-4"
+  >
+    <div className="p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg">
+      <p className="text-brand-red font-medium">{error}</p>
+      <button
+        onClick={() => setError('')}
+        className="mt-2 text-sm text-brand-red/70 hover:text-brand-red underline"
       >
-        <div className="p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg">
-          <p className="text-brand-red font-medium">{error}</p>
-        </div>
-      </motion.div>
-    )}
+        Dismiss
+      </button>
+    </div>
+  </motion.div>
+)}
 
        {/* Filters */}
         <motion.div
@@ -307,7 +321,7 @@ const loadResults = async () => {
             </div>
           )}
         </motion.div>
-        
+
         {/* Results */}
         {isLoading ? (
           <div className="text-center py-12">
