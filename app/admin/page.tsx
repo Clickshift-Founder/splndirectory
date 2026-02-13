@@ -21,6 +21,7 @@ interface StudentResult {
   student_id: number;
   student_name: string;
   matric_number: string;
+  group_name: string;
   avg_q1: number;
   avg_q2: number;
   overall_avg: number;
@@ -32,9 +33,12 @@ export default function AdminDashboard() {
   const [periods, setPeriods] = useState<ReviewPeriod[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<number | string | null>(null);
   const [results, setResults] = useState<StudentResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const showingAllGroups = selectedGroup === 'all';
+
 
   useEffect(() => {
     loadPeriodsAndGroups();
@@ -74,22 +78,49 @@ export default function AdminDashboard() {
     }
   };
 
-  const loadResults = async () => {
-    if (!selectedPeriod || !selectedGroup) return;
+const loadResults = async () => {
+  if (!selectedPeriod) {
+    setResults([]);
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(
-        `/api/results?period_id=${selectedPeriod}&group_id=${selectedGroup}`
-      );
-      const data = await response.json();
-      setResults(data);
-    } catch (error) {
-      console.error('Error loading results:', error);
-    } finally {
-      setIsLoading(false);
+  // Allow showing all groups
+  if (!selectedGroup) {
+    setResults([]);
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    const timestamp = Date.now();
+    const random = Math.random();
+    
+    // Build URL: omit group_id if "all" is selected
+    const url = selectedGroup === 'all'
+      ? `/api/results?period_id=${selectedPeriod}&_t=${timestamp}&_r=${random}`
+      : `/api/results?period_id=${selectedPeriod}&group_id=${selectedGroup}&_t=${timestamp}&_r=${random}`;
+    
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch results');
     }
-  };
+
+    const data = await response.json();
+    setResults(data);
+  } catch (error) {
+    console.error('Error loading results:', error);
+    setError('Failed to load results');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const getScoreColor = (score: number) => {
     if (score >= 4.5) return 'text-brand-green';
@@ -199,6 +230,18 @@ export default function AdminDashboard() {
           </p>
         </motion.div>
 
+        {error && (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-7xl mx-auto px-6 mb-4"
+      >
+        <div className="p-4 bg-brand-red/10 border-l-4 border-brand-red rounded-lg">
+          <p className="text-brand-red font-medium">{error}</p>
+        </div>
+      </motion.div>
+    )}
+
         {/* Filters */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
@@ -213,17 +256,21 @@ export default function AdminDashboard() {
                 Review Period
               </label>
               <select
-                value={selectedPeriod || ''}
-                onChange={(e) => setSelectedPeriod(Number(e.target.value))}
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-red focus:outline-none focus:ring-4 focus:ring-brand-red/10 transition-all"
-              >
-                <option value="">Select Period</option>
-                {periods.map((period) => (
-                  <option key={period.id} value={period.id}>
-                    {period.period_name} {period.is_active && '(Active)'}
-                  </option>
-                ))}
-              </select>
+              value={selectedGroup === null ? '' : selectedGroup}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedGroup(value === 'all' ? 'all' : value === '' ? null : Number(value));
+              }}
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 transition-all"
+            >
+              <option value="">Select Group</option>
+              <option value="all">All Groups</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
             </div>
 
             {/* Group Selector */}
@@ -288,77 +335,48 @@ export default function AdminDashboard() {
           >
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Student
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Matric
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Q1 Avg
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Q2 Avg
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Overall
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Reviews
-                    </th>
-                  </tr>
-                </thead>
+               <thead className="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Student</th>
+          <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Matric Number</th>
+          {showingAllGroups && (
+            <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Group</th>
+          )}
+          <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700">Q1 Avg</th>
+          <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700">Q2 Avg</th>
+          <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700">Overall</th>
+          <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700">Reviews</th>
+        </tr>
+      </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {results.map((result, index) => (
-                    <motion.tr
-                      key={result.student_id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">
-                          {result.student_name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {result.matric_number}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className={`text-2xl font-display font-bold ${getScoreColor(result.avg_q1)}`}>
-                          {result.avg_q1.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {getScoreLabel(result.avg_q1)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className={`text-2xl font-display font-bold ${getScoreColor(result.avg_q2)}`}>
-                          {result.avg_q2.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {getScoreLabel(result.avg_q2)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className={`text-3xl font-display font-bold ${getScoreColor(result.overall_avg)}`}>
-                          {result.overall_avg.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {getScoreLabel(result.overall_avg)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-brand-blue/10 text-brand-blue">
-                          {result.review_count}
-                        </span>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
+            {results.map((result) => (
+              <tr key={result.student_id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4 text-slate-900 font-medium">{result.student_name}</td>
+                <td className="px-6 py-4 text-slate-600">{result.matric_number}</td>
+                {showingAllGroups && (
+                  <td className="px-6 py-4">
+                    <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-sm font-semibold">
+                      {result.group_name || 'N/A'}
+                    </span>
+                  </td>
+                )}
+                <td className="px-6 py-4 text-center text-slate-900">
+                  {result.avg_q1?.toFixed(2) || '0.00'}
+                </td>
+                <td className="px-6 py-4 text-center text-slate-900">
+                  {result.avg_q2?.toFixed(2) || '0.00'}
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <span className="text-lg font-bold text-brand-red">
+                    {result.overall_avg?.toFixed(2) || '0.00'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-center text-slate-600">
+                  {result.review_count || 0}
+                </td>
+              </tr>
+            ))}
+          </tbody>
               </table>
             </div>
           </motion.div>
