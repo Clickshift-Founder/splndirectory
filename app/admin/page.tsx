@@ -242,7 +242,7 @@ const loadResults = async () => {
       </motion.div>
     )}
 
-        {/* Filters */}
+       {/* Filters */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -250,40 +250,40 @@ const loadResults = async () => {
           className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8"
         >
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Period Selector */}
+            {/* Period Selector - FIXED! */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wider">
                 Review Period
               </label>
               <select
-              value={selectedGroup === null ? '' : selectedGroup}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSelectedGroup(value === 'all' ? 'all' : value === '' ? null : Number(value));
-              }}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 transition-all"
-            >
-              <option value="">Select Group</option>
-              <option value="all">All Groups</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+                value={selectedPeriod || ''}
+                onChange={(e) => setSelectedPeriod(Number(e.target.value))}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 transition-all"
+              >
+                <option value="">Select Period</option>
+                {periods.map((period) => (
+                  <option key={period.id} value={period.id}>
+                    {period.period_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Group Selector */}
+            {/* Group Selector - FIXED! */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wider">
                 Group
               </label>
               <select
-                value={selectedGroup || ''}
-                onChange={(e) => setSelectedGroup(Number(e.target.value))}
+                value={selectedGroup === null ? '' : selectedGroup}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedGroup(value === 'all' ? 'all' : value === '' ? null : Number(value));
+                }}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/10 transition-all"
               >
                 <option value="">Select Group</option>
+                <option value="all">All Groups</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
@@ -307,7 +307,7 @@ const loadResults = async () => {
             </div>
           )}
         </motion.div>
-
+        
         {/* Results */}
         {isLoading ? (
           <div className="text-center py-12">
