@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -54,18 +56,38 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   const loadData = async () => {
     try {
+          // Cache-busting timestamp
+      const timestamp = Date.now();
+      const random = Math.random();
+      const cacheHeaders = {
+        cache: 'no-store' as RequestCache,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+        }
+      };
+
       // Fetch student info
-      const studentRes = await fetch(`/api/students/${params.id}`);
+      const studentRes = await fetch(
+        `/api/students/${params.id}?_t=${timestamp}&_r=${random}`,
+        cacheHeaders
+      );
       const studentData = await studentRes.json();
       setStudent(studentData);
 
       // Fetch active review period
-      const periodRes = await fetch('/api/periods/active');
+      const periodRes = await fetch(
+        `/api/periods/active?_t=${timestamp}&_r=${random}`,
+        cacheHeaders
+      );
       const periodData = await periodRes.json();
       setActivePeriod(periodData);
 
       // Fetch group members
-      const membersRes = await fetch(`/api/groups/${studentData.group_id}/members`);
+      const membersRes = await fetch(
+        `/api/groups/${studentData.group_id}/members?_t=${timestamp}&_r=${random}`,
+        cacheHeaders
+      );
       const membersData = await membersRes.json();
       
       // Filter out the current student
